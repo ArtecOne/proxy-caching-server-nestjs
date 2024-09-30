@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable} from '@nestjs/common';
 import { ServerConfiguration } from './config/config';
 import { Request, Response } from 'express';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -26,7 +26,7 @@ export class AppService {
   }
   
   // skipcq: JS-0323
-  // req and res are express objects
+  // MARK: Forward Method
   async forward(req : Request , res : Response): Promise<void> {
 
     // skipcq: JS-0323
@@ -40,7 +40,7 @@ export class AppService {
 
       res.status(response.status);
 
-      AppService.setHeaders(req , res , response , "HIT");
+      await AppService.setHeaders(req , res , response , "HIT");
 
       res.write(Buffer.from(response.arrayBuffer));
 
@@ -56,9 +56,7 @@ export class AppService {
       method: req.method,
     }
 
-    if (Object.keys(req.body).length > 0 && (req.method !== "GET" && req.method !== "HEAD")) {
-      fetchConfig.body = JSON.stringify(req.body);
-    }
+    await AppService.checkIfHeadOrGet(req , fetchConfig)
 
     const responseFromServer = await fetch(`${this.config.forwardUrl}${req.url}`, fetchConfig);
 
@@ -77,7 +75,7 @@ export class AppService {
     
     res.status(cacheObj.status);
 
-    AppService.setHeaders(req , res , cacheObj , "MISS");
+    await AppService.setHeaders(req , res , cacheObj , "MISS");
 
     res.write(Buffer.from(cacheObj.arrayBuffer));
 
@@ -87,7 +85,8 @@ export class AppService {
     res.end();
   }
 
-  static setHeaders(req : Request , res : Response , response : CacheObj , cacheStatus : string) {
+  // MARK: Set Headers
+  static async setHeaders(req : Request , res : Response , response : CacheObj , cacheStatus : string) {
     for (const [key, value] of Object.entries(response.headers)) {
       // skipcq: JS-0002
       console.log(`setting header ${key} with value ${value}`);
@@ -95,5 +94,17 @@ export class AppService {
     }
 
     res.setHeader("X-Cache", cacheStatus);
+  }
+
+
+  // MARK: Check If Head Or Get
+  static async checkIfHeadOrGet(req : Request , fetchConfig : RequestInit) {
+    if (req.method === "GET" || req.method === "HEAD") {
+      return
+    }
+
+    if (Object.keys(req.body).length > 0) {
+      fetchConfig.body = JSON.stringify(req.body);
+    }
   }
 }
